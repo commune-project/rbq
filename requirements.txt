@@ -1,0 +1,10 @@
+Django>=2.2
+djangorestframework>=3.10
+markdown>=3.1
+django-filter>=2.2
+psycopg2cffi>=2.8.1
+cryptography>=2.7
+drf-httpsig>=1.2.0
+requests>=2.22
+requests-http-signature>=0.1
+django-q>=1.0.2
