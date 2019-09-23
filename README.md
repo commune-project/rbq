@@ -7,6 +7,23 @@ DO NOT use it in a production environment, NO function is done.
 * Python3 (tested with 3.6.1 PyPy 7.1.1)
 * PostgreSQL (tested with 10)
 
+# Development
+You must prepare a PostgreSQL database for it.
+
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+
+Copy `rbq/settings.example.py` to `rbq/settings.py`.
+Configure `SECRET_KEY`, `DATABASES["default"]`, `RBQ_LOCAL_DOMAINS` and so on.
+
+    ./manage.py migrate
+    ./manage.py createsuperuser
+    ./manage.py runserver 0.0.0.0:8000
+
+And you can access the unfinished page on `http://localhost:8000`.
+You may need to set a proper reverse proxy before it…
+
 # License
 
 Copyright (C) 2019 Misaka 0x4e21

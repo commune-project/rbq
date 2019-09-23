@@ -1,14 +1,16 @@
+from typing import Union
+
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
-from typing import Union
 
 class Key:
     """
     Base class of private and public keys.
     Only used to generate and convert currently.
     """
+
     def __init__(self, key):
         self.key = key
 
@@ -18,6 +20,7 @@ class Key:
     @classmethod
     def from_pem(self, pem):
         raise NotImplementedError()
+
 
 class PublicKey(Key):
 
@@ -36,6 +39,7 @@ class PublicKey(Key):
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         ).decode('utf-8')
+
 
 class PrivateKey(Key):
     @classmethod

@@ -1,21 +1,17 @@
 from rest_framework.renderers import JSONRenderer
+from rbq_backend.components.asobject_component import ASDict, filter_asobject_for_output
 
 
 class ActivityStreamsRenderer(JSONRenderer):
+    "Render returned JSON as ActivityStreams."
     media_type = 'application/activity+json'
 
-    def render(self, data, media_type=None, renderer_context=None):
-        if not data:
-            return data
-        ctx = data.get('@context', [])
-        if not isinstance(ctx, list):
-            ctx = [ctx]
-        ctx = set(ctx)
-        ctx.add('https://www.w3.org/ns/activitystreams')
-        if "publicKey" in data.keys():
-            ctx.add("https://w3id.org/security/v1")
-        data['@context'] = list(ctx)
-        return super().render(data, renderer_context=renderer_context)
+    def render(self, data: ASDict, accepted_media_type=None, renderer_context=None) -> bytes:
+        data = filter_asobject_for_output(data)
+        return super().render(
+            data,
+            accepted_media_type=self.media_type,
+            renderer_context=renderer_context)
 
 
 class ActivityStreamsLDJSONRenderer(ActivityStreamsRenderer):
@@ -23,4 +19,5 @@ class ActivityStreamsLDJSONRenderer(ActivityStreamsRenderer):
 
 
 class WebfingerRenderer(JSONRenderer):
+    "Render returned JSON as JRD."
     media_type = 'application/jrd+json'

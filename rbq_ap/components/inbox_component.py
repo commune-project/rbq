@@ -1,3 +1,5 @@
+from typing import Iterable, List, Dict, Any, Union, Optional
+
 from rbq_backend.models import ASActivity, ASObject, Account
 from rbq_backend.components import asobject_component
 from rbq_ap.components import account_component, fetcher_component, asactivity_component
@@ -5,7 +7,6 @@ from django_q.tasks import async_task, result
 from django.db import IntegrityError
 from urllib.parse import urlparse
 
-from typing import Iterable, List, Dict, Any, Union, Optional
 
 def get_recipients(data: dict) -> List[str]:
     to = data.get("to", [])
@@ -19,6 +20,11 @@ def get_recipients(data: dict) -> List[str]:
         return list(set(to + cc + bcc + [actor]))
 
 def get_id(data: Union[str, Dict[str, str]]) -> Optional[str]:
+    """
+    Get object id.
+    
+    The object id of a str is itself
+    """
     if isinstance(data, dict):
         if "id" in data.keys():
             return data["id"]
@@ -40,17 +46,28 @@ class DomainNotMatchException(Exception):
 class ObjectNotFoundException(Exception):
     pass
 
-def is_domain_equal(url1, url2):
+def is_domain_equal(url1: str, url2: str) -> bool:
     "Don't allow activities with their objects from other domains."
-    url1, url2 = urlparse(url1), urlparse(url2)
-    return url1.hostname == url2.hostname
+    result1, result2 = urlparse(url1), urlparse(url2)
+    return result1.hostname == result2.hostname
 
 class Inbox:
+    """
+    Handle all ActivityStreams Activities POSTed
+    to /inbox or /users/<username>/inbox.
+    """
     def __init__(self, request=None):
         self.request = request
     # Only supported
     ACTIVITY_TYPES = ['Create', 'Follow', 'Undo']
     def handler(self, data: dict):
+        """
+        Do the side-effects of any Activity;
+        the actual function to call is determined
+        by data["type"].
+
+        data -- the Activity dict parsed by DRF.
+        """
         try:
             if ASActivity.objects.filter(data__id=data["id"]).count() == 0:
                 self.check_actor(data)
