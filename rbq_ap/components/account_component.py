@@ -9,6 +9,12 @@ from rbq_ap.components import fetcher_component
 from typing import Optional, List
 
 def fetch_new_user(ap_id: str, account: Optional[Account]=None) -> Account:
+    """
+    Fetch a new Actor object from remote server.
+
+    ap_id -- the Actor's ActivityPub id.
+    account -- another local Account used to authenticate during the HTTP GET req.
+    """
     data = fetcher_component.get(ap_id, account).json()
     domain = urlparse(data["id"]).hostname
     firstname = data["preferredUsername"]

@@ -1,5 +1,5 @@
 "Functions related to ASObjects."
-from typing import Dict, Optional, Any, Union, List
+from typing import Dict, Optional, Union, List
 
 from django.conf import settings
 from rbq_backend import models
@@ -46,6 +46,7 @@ def save_asobject(obj: ASDict) -> Optional[models.ASObject]:
 
 
 def maybe_create_or_find_context(obj: ASDict) -> ASDict:
+    "Ensure an ActivityStreams object has its context."
     context = None
     try:
         context = models.ASObject.objects.get(data__id=obj["context"])

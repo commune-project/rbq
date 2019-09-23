@@ -1,14 +1,20 @@
-from typing import Iterable, List, Dict, Any, Union, Optional
+from typing import List, Dict, Union, Optional
+from urllib.parse import urlparse
+
+from django.db import IntegrityError
 
 from rbq_backend.models import ASActivity, ASObject, Account
 from rbq_backend.components import asobject_component
-from rbq_ap.components import account_component, fetcher_component, asactivity_component
-from django_q.tasks import async_task, result
-from django.db import IntegrityError
-from urllib.parse import urlparse
+from rbq_backend.components.asobject_component import ASDict
+from rbq_ap.components import account_component, asactivity_component
 
 
 def get_recipients(data: dict) -> List[str]:
+    """
+    Returns recipients of an Activity.
+    
+    dict -- the Activity dict.
+    """
     to = data.get("to", [])
     cc = data.get("cc", [])
     bcc = data.get("bcc", [])
@@ -22,7 +28,7 @@ def get_recipients(data: dict) -> List[str]:
 def get_id(data: Union[str, Dict[str, str]]) -> Optional[str]:
     """
     Get object id.
-    
+
     The object id of a str is itself
     """
     if isinstance(data, dict):
@@ -83,7 +89,13 @@ class Inbox:
         except Exception as e:
             print(e)
 
-    def create_handler(self, data: dict) -> Optional[Dict[str, Any]]:
+    def create_handler(self, data: ASDict) -> Optional[ASDict]:
+        """
+        Handle the Create Activity.
+        
+        returns the proccessed Activity to save in database.
+        data -- the incoming Activity dict.
+        """
         try:
             if isinstance(data["object"], dict):
                 data = self.normalize_object(data)
@@ -102,7 +114,7 @@ class Inbox:
             # NOTE: Don't create twice.
             return None
 
-    def follow_handler(self, data: dict) -> dict:
+    def follow_handler(self, data: ASDict) -> ASDict:
         try:
             if isinstance(data["object"], dict):
                 data["object"] = data["object"]["id"]
@@ -121,7 +133,7 @@ class Inbox:
             raise InvalidFormException(data)
         return data
 
-    def undo_handler(self, data: dict) -> dict:
+    def undo_handler(self, data: ASDict) -> ASDict:
         obj_id = get_id(data["object"])
         obj_data = None
         try:
@@ -136,8 +148,12 @@ class Inbox:
             follower.following.remove(followee)
         return data
 
-    def check_actor(self, data: dict):
-        "Check against HTTP Signatures"
+    def check_actor(self, data: ASDict):
+        """
+        Check against HTTP Signatures.
+
+        data -- Can be an Activity or an Object dict.
+        """
         try:
             actor_id = data["actor"]
             if isinstance(data["actor"], dict):
