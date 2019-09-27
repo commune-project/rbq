@@ -1,5 +1,4 @@
 from typing import Optional
-
 from django.db import models
 from django.contrib.postgres.fields import JSONField, ArrayField, CITextField
 from django.contrib.auth.models import AbstractBaseUser, UserManager, PermissionsMixin
@@ -7,20 +6,15 @@ from django.conf import settings
 
 from rbq_backend.components import crypto_component
 
-class ARModel(models.Model):
-    "Basic model with common fields."
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
+from .base_models import ARModel
+from .administration import Administration
 
 class APActorManagerMixin:
-    def gen_ap_id(self, account: 'Account') -> Optional[str]:
+    def gen_ap_id(self, account: 'Account') -> str:
         if account.is_local:
             return "https://%s/users/%s" % (account.domain, account.preferred_username)
         else:
-            return ''
+            return account.ap_id
     def gen_inbox_uri(self, account: 'Account') -> str:
         return self.gen_ap_id(account)+"/inbox"
     def gen_outbox_uri(self, account: 'Account') -> str:
@@ -65,6 +59,13 @@ class AccountManager(UserManager, APActorManagerMixin):
             self.initialize(account)
             account.save()
 
+    @classmethod
+    def normalize_email(cls, email: str = None) -> Optional[str]:
+        if email is not None:
+            return super().normalize_email(email)
+        else:
+            return None
+
 class SubforumManager(models.Manager, APActorManagerMixin):
     def get_queryset(self):
         "Subforum QuerySet"
@@ -99,8 +100,12 @@ class Account(AbstractBaseUser, PermissionsMixin, ARModel):
     type = models.CharField(choices=AS_TYPES, max_length=50, default="Person")
     is_superuser = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
-    email = CITextField(unique=True, null=True)
-    following = models.ManyToManyField('self', related_name='followers', symmetrical=False, through='Follow', through_fields=('followee', 'follower'))
+    email = CITextField(unique=True, null=True, blank=True)
+    following = models.ManyToManyField(
+        'self',
+        related_name='followers',
+        symmetrical=False,
+        through='Follow', through_fields=('followee', 'follower'))
     following_uri = models.TextField()
     followers_uri = models.TextField()
     public_key = models.TextField()
@@ -133,7 +138,7 @@ class Account(AbstractBaseUser, PermissionsMixin, ARModel):
     @property
     def header(self):
         return ''
-    
+
     @property
     def is_bot(self):
         return self.type == 'Service'
@@ -146,59 +151,3 @@ class Account(AbstractBaseUser, PermissionsMixin, ARModel):
 
     objects = AccountManager()
     subforums = SubforumManager()
-
-
-class ASObject(models.Model):
-    "All ActivityStreams objects goes here."
-    data = JSONField()
-
-    @property
-    def actor(self):
-        if isinstance(self.data.get("actor", None), str):
-            return Account.objects.get(ap_id=self.data["actor"])
-        return Account.objects.filter(activities__data__object=self.data["id"]).get()
-
-    def __str__(self):
-        try:
-            return self.data["id"]
-        except KeyError:
-            return ("ASO: %d" % self.id)
-
-    class Meta:
-        verbose_name_plural = 'ASObjects'
-
-
-class ASActivity(ARModel):
-    "All ActivityStreams activities goes here."
-    data = JSONField()
-    domain = models.CharField(max_length=255)
-    actor = models.ForeignKey(
-        Account, on_delete=models.DO_NOTHING, related_name='activities', to_field='ap_id')
-    recipients = ArrayField(models.CharField(max_length=255), null=True)
-
-    def __str__(self):
-        try:
-            return self.data.get("type", "") + ": " + self.data["id"]
-        except KeyError:
-            return super().__str__()
-
-    class Meta:
-        verbose_name_plural = 'ASActivities'
-
-class Administration(models.Model):
-    ADMIN_TYPE = (
-        ("owner", "Owns"),
-        ("moderator", "Moderates"),
-        ("poster", "Able to post on"),
-    )
-    bourgeoisie = models.ForeignKey(Account, related_name="exploits", on_delete=models.CASCADE)
-    proletariat = models.ForeignKey(Account, related_name="exploited_by", on_delete=models.CASCADE)
-    admin_type = models.CharField(choices=ADMIN_TYPE, max_length=50)
-    def __str__(self):
-        return "%s %s %s." % (self.bourgeoisie, dict(self.ADMIN_TYPE)[self.admin_type], self.proletariat)
-
-class Follow(ARModel):
-    followee = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='+')
-    follower = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='+')
-    class Meta:
-        ordering = ['created_at']

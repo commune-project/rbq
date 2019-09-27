@@ -1,6 +1,6 @@
 # rbq_ap/auth.py
 
-from drf_httpsig.authentication import SignatureAuthentication, FAILED
+from drf_httpsig.authentication import SignatureAuthentication
 from rbq_backend.models import Account
 from rbq_ap.components import account_component
 

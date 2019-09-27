@@ -28,12 +28,12 @@ class ActorViewSet(AtDomainViewMixin, viewsets.ReadOnlyModelViewSet):
     lookup_value_regex = r'[^@\/]+'
 
     @action(detail=True, methods=["POST"])
-    def inbox(self, request: Request, username: str=None) -> Response:
+    def inbox(self, request: Request, username: str = None) -> Response:
         inbox_component.Inbox(request).handler(request.data)
         return Response(status=200)
 
     @action(detail=True, methods=["GET"])
-    def followers(self, request: Request, username: str=None) -> Response:
+    def followers(self, request: Request, username: str = None) -> Response:
         account = self.get_object()
         if 'page' in request.query_params.keys():
             page = int(request.query_params["page"])
@@ -42,7 +42,7 @@ class ActorViewSet(AtDomainViewMixin, viewsets.ReadOnlyModelViewSet):
             return Response(data=account_component.gen_followers(account))
 
     @action(detail=True, methods=["GET"])
-    def following(self, request: Request, username: str=None) -> Response:
+    def following(self, request: Request, username: str = None) -> Response:
         account = self.get_object()
         if 'page' in request.query_params.keys():
             page = int(request.query_params["page"])

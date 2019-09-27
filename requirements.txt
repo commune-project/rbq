@@ -1,3 +1,4 @@
+wheel
 Django>=2.2
 djangorestframework>=3.10
 markdown>=3.1

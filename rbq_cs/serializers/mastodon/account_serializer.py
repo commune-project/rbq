@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rbq_backend.models import Account
 
 class AccountSerializer(serializers.ModelSerializer):
+    id = serializers.CharField()
     bot = serializers.BooleanField(source='is_bot')
     locked = serializers.BooleanField(source='is_locked')
     acct = serializers.CharField(source="username")

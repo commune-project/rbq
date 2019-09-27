@@ -1,72 +1,27 @@
-from typing import List, Dict, Union, Optional
-from urllib.parse import urlparse
-
-from django.db import IntegrityError
-
-from rbq_backend.models import ASActivity, ASObject, Account
-from rbq_backend.components import asobject_component
+from django import db
+from rbq_backend.models import ASActivity
 from rbq_backend.components.asobject_component import ASDict
 from rbq_ap.components import account_component, asactivity_component
 
 
-def get_recipients(data: dict) -> List[str]:
-    """
-    Returns recipients of an Activity.
-    
-    dict -- the Activity dict.
-    """
-    to = data.get("to", [])
-    cc = data.get("cc", [])
-    bcc = data.get("bcc", [])
-    actor = data.get("actor", [])
-    try:
-        aso = ASObject.objects.get(data__id=data["object"])
-        return list(set(to + cc + bcc + [actor]+ get_recipients(aso.data)))
-    except (KeyError, ASObject.DoesNotExist):
-        return list(set(to + cc + bcc + [actor]))
-
-def get_id(data: Union[str, Dict[str, str]]) -> Optional[str]:
-    """
-    Get object id.
-
-    The object id of a str is itself
-    """
-    if isinstance(data, dict):
-        if "id" in data.keys():
-            return data["id"]
-    if isinstance(data, str):
-        return data
-    else:
-        return None
-
-
-class ActorNotMatchException(Exception):
-    pass
-
-class InvalidFormException(Exception):
-    pass
-
-class DomainNotMatchException(Exception):
-    pass
-
-class ObjectNotFoundException(Exception):
-    pass
-
-def is_domain_equal(url1: str, url2: str) -> bool:
-    "Don't allow activities with their objects from other domains."
-    result1, result2 = urlparse(url1), urlparse(url2)
-    return result1.hostname == result2.hostname
-
-class Inbox:
+class Inbox(asactivity_component.CreateHandlerMixin,
+            asactivity_component.LikeHandler,
+            asactivity_component.AnnounceHandler,
+            asactivity_component.UndoHandlerMixin,
+            asactivity_component.FollowHandlerMixin,
+            asactivity_component.AcceptHandlerMixin,
+            asactivity_component.SaveASActivityMixin):
     """
     Handle all ActivityStreams Activities POSTed
     to /inbox or /users/<username>/inbox.
     """
+
     def __init__(self, request=None):
         self.request = request
     # Only supported
-    ACTIVITY_TYPES = ['Create', 'Follow', 'Undo']
-    def handler(self, data: dict):
+    ACTIVITY_TYPES = ['Create', 'Follow', 'Accept', 'Undo', 'Like']
+
+    def handler(self, data: ASDict):
         """
         Do the side-effects of any Activity;
         the actual function to call is determined
@@ -74,79 +29,20 @@ class Inbox:
 
         data -- the Activity dict parsed by DRF.
         """
+        self.original_activity = data
         try:
             if ASActivity.objects.filter(data__id=data["id"]).count() == 0:
                 self.check_actor(data)
                 if data["type"] in self.ACTIVITY_TYPES:
-                    data = getattr(self, '%s_handler' % data["type"].lower())(data)
-                    ASActivity.objects.create(data=data, actor=self.request.user, recipients=get_recipients(data))
+                    data = getattr(self, '%s_handler' %
+                                   data["type"].lower())(data)
+                    if data:
+                        self.save(data, self.request.user,
+                                  asactivity_component.get_recipients(data))
                 else:
                     print(data)
         except KeyError:
-            raise InvalidFormException(data)
-        except ActorNotMatchException:
-            pass
-        except Exception as e:
-            print(e)
-
-    def create_handler(self, data: ASDict) -> Optional[ASDict]:
-        """
-        Handle the Create Activity.
-        
-        returns the proccessed Activity to save in database.
-        data -- the incoming Activity dict.
-        """
-        try:
-            if isinstance(data["object"], dict):
-                data = self.normalize_object(data)
-                asobject_component.save_asobject(data["object"])
-                data["object"] = data["object"]["id"]
-            elif isinstance(data["object"], str):
-                if not is_domain_equal(data["object"], data["id"]):
-                    raise DomainNotMatchException(data)
-                asobject_component.get_asobject({"id": data["object"]})
-            else:
-                raise ObjectNotFoundException(data)
-            return data
-        except KeyError:
-            raise InvalidFormException(data)
-        except IntegrityError:
-            # NOTE: Don't create twice.
-            return None
-
-    def follow_handler(self, data: ASDict) -> ASDict:
-        try:
-            if isinstance(data["object"], dict):
-                data["object"] = data["object"]["id"]
-            followee = account_component.get_or_fetch_user(data["object"])
-            if followee.is_local:
-                if not followee.is_locked:
-                    self.request.user.following.add(followee)
-                    asactivity_component.send_activity(data={
-                        "@context": "https://www.w3.org/ns/activitystreams",
-                        "id": "%s#accepts/follows/%s" % (followee.ap_id, data["id"]),
-                        "type": "Accept",
-                        "actor": followee.ap_id,
-                        "object": data
-                    }, recipients=[followee.ap_id, self.request.user.ap_id], task_name="send_follow_accept")
-        except KeyError:
-            raise InvalidFormException(data)
-        return data
-
-    def undo_handler(self, data: ASDict) -> ASDict:
-        obj_id = get_id(data["object"])
-        obj_data = None
-        try:
-            aso = ASObject.objects.get(data__id=obj_id)
-            obj_data = aso.data
-        except ASObject.DoesNotExist:
-            obj_data = ASActivity.objects.get(data__id=obj_id).data
-        if obj_data["type"] == "Follow":
-            follower = Account.objects.get(ap_id=get_id(obj_data["actor"]))
-            followee = Account.objects.get(ap_id=get_id(obj_data["object"]))
-            print("%s unfollows %s" % (follower, followee))
-            follower.following.remove(followee)
-        return data
+            raise asactivity_component.InvalidFormException(data)
 
     def check_actor(self, data: ASDict):
         """
@@ -159,15 +55,15 @@ class Inbox:
             if isinstance(data["actor"], dict):
                 actor_id = data["actor"]["id"]
                 data["actor"] = actor_id
+            if self.request.user is None:
+                raise asactivity_component.ActorNotMatchException(
+                    actor_id=actor_id,
+                    account_id=None)
             if self.request.user.ap_id != actor_id:
-                raise ActorNotMatchException()
+                raise asactivity_component.ActorNotMatchException(
+                    actor_id=actor_id,
+                    account_id=self.request.user.ap_id)
+        except asactivity_component.ActorNotMatchException as exception:
+            raise exception
         except:
-            raise ActorNotMatchException()
-
-    def normalize_object(self, data: dict) -> dict:
-        try:
-            if not is_domain_equal(data["object"]["id"], data["id"]):
-                raise DomainNotMatchException(data)
-        except:
-            raise DomainNotMatchException(data)
-        return data
+            raise asactivity_component.ActorNotMatchException()

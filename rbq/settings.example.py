@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     'rbq_backend',
     'rbq_ap',
     'rbq_forum',
-    #'rbq_cs',
+    'rbq_cs',
 ]
 
 MIDDLEWARE = [

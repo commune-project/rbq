@@ -2,6 +2,8 @@ from django.shortcuts import render
 from django.shortcuts import get_object_or_404
 
 # Create your views here.
+
+
 class AtDomainViewMixin:
     def get_object(self):
         """
@@ -22,7 +24,12 @@ class AtDomainViewMixin:
             (self.__class__.__name__, lookup_url_kwarg)
         )
 
-        filter_kwargs = {self.lookup_field: "%s@%s" % (self.kwargs[lookup_url_kwarg], self.request.get_host())}
+        filter_kwargs = {
+            self.lookup_field: "%s@%s" % (
+                self.kwargs[lookup_url_kwarg], self.request.get_host()
+            )
+        }
+
         obj = get_object_or_404(queryset, **filter_kwargs)
 
         # May raise a permission denied

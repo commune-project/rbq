@@ -24,6 +24,10 @@ Configure `SECRET_KEY`, `DATABASES["default"]`, `RBQ_LOCAL_DOMAINS` and so on.
 And you can access the unfinished page on `http://localhost:8000`.
 You may need to set a proper reverse proxy before it…
 
+# Run Unit Tests
+    pip install -r test_requirements.txt
+    python3 runtests.py
+
 # License
 
 Copyright (C) 2019 Misaka 0x4e21

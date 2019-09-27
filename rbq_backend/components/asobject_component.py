@@ -25,40 +25,13 @@ def filter_asobject_for_output(data: ASDict) -> ASDict:
     return data
 
 def get_asobject(obj: ASDict) -> Optional[models.ASObject]:
-    try:
-        return models.ASObject.objects.get(data__id=obj["id"])
-    except models.ASObject.DoesNotExist:
-        obj = fetcher_component.get(obj["id"])
-        return save_asobject(obj)
+    """
+    Get an ASObject from database or fetch it, based on its id.
 
+    returns the actual ASObject
+    obj["id"] -- the object id IRI.
+    """
+    return models.ASObject.objects.get_or_fetch(obj)
 
 def save_asobject(obj: ASDict) -> Optional[models.ASObject]:
-    if "id" not in obj.keys():
-        return None
-    obj = maybe_create_or_find_context(obj)
-    try:
-        aso = models.ASObject.objects.get(data__id=obj["id"])
-        aso.data = obj
-        aso.save()
-        return aso
-    except models.ASObject.DoesNotExist:
-        return models.ASObject.objects.create(data=obj)
-
-
-def maybe_create_or_find_context(obj: ASDict) -> ASDict:
-    "Ensure an ActivityStreams object has its context."
-    context = None
-    try:
-        context = models.ASObject.objects.get(data__id=obj["context"])
-    except (KeyError, models.ASObject.DoesNotExist):
-        if 'inReplyTo' in obj.keys():
-            obj["context"] = maybe_create_or_find_context(
-                get_asobject({"id": obj["inReplyTo"]}))
-        else:
-            context = models.ASObject(data={"type": "Context"})
-            context.save()
-            context.data["id"] = "https://%s/contexts/%s" % (
-                settings.RBQ_LOCAL_DOMAINS[0], context.id)
-            context.save()
-            obj["context"] = context.data["id"]
-    return obj
+    return models.ASObject.objects.save_asobject(obj)

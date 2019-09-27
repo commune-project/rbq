@@ -7,7 +7,8 @@ from requests_http_signature import HTTPSignatureAuth
 
 from rbq_backend.models import Account
 
-def get(url: str, account: Optional[Account]=None) -> requests.Response:
+
+def get(url: str, account: Optional[Account] = None) -> requests.Response:
     "Fetch JSON data from a URL, with HTTP Signatures authorization."
     return requests.get(
         url,
@@ -15,7 +16,8 @@ def get(url: str, account: Optional[Account]=None) -> requests.Response:
         headers={"Accept": "application/activity+json"}
     )
 
-def auth_from_account(account: Optional[Account]=None) -> Optional[Callable]:
+
+def auth_from_account(account: Optional[Account] = None) -> Optional[Callable]:
     "Generate the HTTP Signatures authenticator of requests."
     def signature_auth(func):
         """
@@ -40,12 +42,16 @@ def auth_from_account(account: Optional[Account]=None) -> Optional[Callable]:
     else:
         return None
 
-def post(url: str, account: Optional[Account] = None, json: Optional[dict] = None) -> requests.Response:
+
+def post(url: str,
+         account: Optional[Account] = None,
+         json: Optional[dict] = None) -> requests.Response:
     "Send JSON data to a URL, with HTTP Signatures authorization."
     result = requests.post(
         url,
         auth=auth_from_account(account),
-        headers={"Accept": "application/activity+json"},
-        json=json
-    )
+        headers={
+            "Accept": "application/activity+json",
+            "Content-Type": "application/activity+json"},
+        json=json)
     return result
